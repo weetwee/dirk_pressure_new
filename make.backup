@@ -1,0 +1,4 @@
+rsync -av -e ssh . w2@weetwee.homelinux.org:/home/w2/dirk_pressure_new
+
+
+
