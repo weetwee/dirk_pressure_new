@@ -78,7 +78,9 @@ Rev. 23-may-2014 : the file name is now MMDDHHMM .. instead of DDMMHHMM (request
                    now 50 mS.
                    suggestion : use the median of 5 points instead of the average ?
                    added stop_mode (see the end of the log file) , manual or automatic stop
-Rev. 13-jan-2017 : added : mode 3 : a measurement every 5 sec. during 8 days                   
+Rev. 13-jan-2017 : added : mode 3 : a measurement every 5 sec. during 8 days
+Rev. 16-jan-2017 : now we start in mode : 3 with the logging activated (if we have an SD-card inserted).
+Rev. 23-jan-2017 : counter & max_counter is now : unsigned long , max_counters[] is now : prog_uint32_t
 */
 
 #include <Wire.h>
@@ -96,7 +98,7 @@ Rev. 13-jan-2017 : added : mode 3 : a measurement every 5 sec. during 8 days
 // we put all the fixed text string in FLASH memory instead of in dynamic SRAM
 
 prog_char title_string[] PROGMEM = "Pressure - Logging" ;
-prog_char rev1_string[] PROGMEM = "Rev. 13-jan-2017" ;
+prog_char rev1_string[] PROGMEM = "Rev. 23-jan-2017" ;
 prog_char email_string[] PROGMEM = "email : w2@skynet.be" ;
 prog_char no_sd_card[] PROGMEM = "No SD-Card inserted" ;
 prog_char wr_protected[] PROGMEM = "SD : Write protected" ;
@@ -104,7 +106,7 @@ prog_char card_ready[] PROGMEM = "SD-Card : Ready" ;
 prog_char sd_init_failed[] PROGMEM = "SD-Card Init. failed" ;
 prog_char mode_0[] PROGMEM = "0.5 sec. - 5 min." ;
 prog_char mode_1[] PROGMEM = "1.0 sec. - 1 hour" ;
-prog_char mode_2[] PROGMEM = "5.0 sec - 8 hours" ;
+prog_char mode_2[] PROGMEM = "5.0 sec. - 8 hours" ;
 prog_char cannot_open[] PROGMEM = "Cannot open a file" ;
 prog_char end_logging[] PROGMEM = "Stopped at " ;
 prog_char mode_str[] PROGMEM = "#Mode : " ;
@@ -170,7 +172,7 @@ char lcd_mess[21] ; // for a general message & for a message line on the LCD
 char date_time[20] ; // in the format : hh:mm:ss DD-MM-YYYY
 
 File myFile ;
-unsigned int counter ; // for the log file
+unsigned long counter ; // for the log file
 unsigned long counter1 ; // for the Serial logging
 
 // some Mode parameters :
@@ -180,8 +182,8 @@ unsigned long counter1 ; // for the Serial logging
 // Mode 2 : a measurement every 5 sec. during 8 hours
 // Mode 3 : a measurement every 5 sec. during 8 days
 
-PROGMEM prog_uint16_t max_counters[] = {600 , 3600 , 5760 , 5760*24} ;
-unsigned int max_counter ;
+PROGMEM prog_uint32_t max_counters[] = {600 , 3600 , 5760 , 5760*24} ;
+unsigned long max_counter ;
 PROGMEM prog_uint32_t mode_interrupt_times[] = {500000 , 1000000 , 5000000 , 5000000} ;
 
 #define SD_DETECT A2 // used for the SD-card detection
@@ -468,8 +470,8 @@ void setup () { // 23-may-2014
  
  counter=0 ;
  counter1=0 ;
- mode=0 ; // we always start in Mode 0
- try_to_open_file=0 ;
+ mode=3 ; // we always start in Mode 0 , now we start in mode 3
+ try_to_open_file=1 ; // was 0
  try_to_stop_logging=0 ;
  stop_mode=1 ; // default is automatic stop
  
