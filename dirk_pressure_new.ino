@@ -81,6 +81,9 @@ Rev. 23-may-2014 : the file name is now MMDDHHMM .. instead of DDMMHHMM (request
 Rev. 13-jan-2017 : added : mode 3 : a measurement every 5 sec. during 8 days
 Rev. 16-jan-2017 : now we start in mode : 3 with the logging activated (if we have an SD-card inserted).
 Rev. 23-jan-2017 : counter & max_counter is now : unsigned long , max_counters[] is now : prog_uint32_t
+                   changed : mark_begin()
+Rev. 30-jan-2017 : now max_counter is correct for mode 3 , solved the bug of the rubbish characters
+                   at the end of a log. file (should use strcpy_P instead of strcpy)
 */
 
 #include <Wire.h>
@@ -98,7 +101,7 @@ Rev. 23-jan-2017 : counter & max_counter is now : unsigned long , max_counters[]
 // we put all the fixed text string in FLASH memory instead of in dynamic SRAM
 
 prog_char title_string[] PROGMEM = "Pressure - Logging" ;
-prog_char rev1_string[] PROGMEM = "Rev. 23-jan-2017" ;
+prog_char rev1_string[] PROGMEM = "Rev. 30-jan-2017" ;
 prog_char email_string[] PROGMEM = "email : w2@skynet.be" ;
 prog_char no_sd_card[] PROGMEM = "No SD-Card inserted" ;
 prog_char wr_protected[] PROGMEM = "SD : Write protected" ;
@@ -182,7 +185,7 @@ unsigned long counter1 ; // for the Serial logging
 // Mode 2 : a measurement every 5 sec. during 8 hours
 // Mode 3 : a measurement every 5 sec. during 8 days
 
-PROGMEM prog_uint32_t max_counters[] = {600 , 3600 , 5760 , 5760*24} ;
+PROGMEM prog_uint32_t max_counters[] = {600 , 3600 , 5760 , 138240} ;
 unsigned long max_counter ;
 PROGMEM prog_uint32_t mode_interrupt_times[] = {500000 , 1000000 , 5000000 , 5000000} ;
 
@@ -201,6 +204,8 @@ volatile float value ; // the value we measured
 
 byte log_data ;
 byte stop_mode ; // default is 1 , automatic stop
+
+// byte test_b ;
 
 /************************************************
 Convert the string lcd_mess to exactly 20 char. *
@@ -252,7 +257,7 @@ Mark the START of the logging      *
 mode + date/time info              *
 ***********************************/
 
-void mark_begin() // 30-apr-2014
+void mark_begin() // 23-jan-2017
 
 {
  float period ;
@@ -261,8 +266,16 @@ void mark_begin() // 30-apr-2014
   strcpy_P(lcd_mess,(char*)pgm_read_word(&(string_table[12]))) ; // Mode :
   myFile.print(lcd_mess) ;
   myFile.print(mode) ;
+  myFile.print(" , ") ;
+  if (mode == 0) strcpy_P(lcd_mess,(char*)pgm_read_word(&(string_table[7]))) ; else // mode 0
+   if (mode == 1) strcpy_P(lcd_mess,(char*)pgm_read_word(&(string_table[8]))) ; else // mode 1
+    if (mode == 2) strcpy_P(lcd_mess,(char*)pgm_read_word(&(string_table[9]))) ; else // mode 2
+     if (mode == 3) strcpy_P(lcd_mess,(char*)pgm_read_word(&(string_table[24]))) ; // mode 3
+  myFile.print(lcd_mess) ;
   period=(float)pgm_read_dword(mode_interrupt_times+mode)/1000000.0 ;
-  Serial.println(period) ;
+  Serial.print("Period : ") ;
+  Serial.print(period) ;
+  Serial.println(" sec.") ;
   strcpy_P(lcd_mess,(char*)pgm_read_word(&(string_table[17]))) ; // Period
   myFile.print(lcd_mess) ;
   dtostrf(period,3,1,lcd_mess) ;
@@ -289,7 +302,7 @@ only date/time info                *
 & manual or automatic stop         *
 ***********************************/
 
-void mark_end() // 23-may-2014
+void mark_end() // 30-jan-2017
 
 {
  if (myFile) {
@@ -298,8 +311,8 @@ void mark_end() // 23-may-2014
   myFile.print(lcd_mess) ;
   get_act_date_time() ;
   myFile.print(date_time) ;
-  if (stop_mode) strcpy(lcd_mess,(char*)pgm_read_word(&(string_table[23]))) ;
-   else strcpy(lcd_mess,(char*)pgm_read_word(&(string_table[22]))) ;
+  if (stop_mode) strcpy_P(lcd_mess,(char*)pgm_read_word(&(string_table[23]))) ;
+   else strcpy_P(lcd_mess,(char*)pgm_read_word(&(string_table[22]))) ;
   myFile.println(lcd_mess) ;
   myFile.flush() ;
  } 
@@ -423,7 +436,7 @@ void sd_init() // 11-mar-2014
 The Arduino setup() function             *
 *****************************************/
 
-void setup () { // 23-may-2014
+void setup () { // 30-jan-2017
   
  Serial.begin(9600);
  Wire.begin();
@@ -471,6 +484,7 @@ void setup () { // 23-may-2014
  counter=0 ;
  counter1=0 ;
  mode=3 ; // we always start in Mode 0 , now we start in mode 3
+ // max_counter=pgm_read_dword(max_counters+mode)  ;
  try_to_open_file=1 ; // was 0
  try_to_stop_logging=0 ;
  stop_mode=1 ; // default is automatic stop
@@ -616,6 +630,7 @@ or stop it when it is already running               *
 void start_logging() // 23-may-2014
 
 {
+ // test_b++ ; // only for test purposes
  noInterrupts() ;
  
  // wait for the end of the debounce time
@@ -641,7 +656,7 @@ void display_mode() // 13-jan-2017
   if (mode == 1) strcpy_P(lcd_mess,(char*)pgm_read_word(&(string_table[8]))) ; else
    if (mode == 2) strcpy_P(lcd_mess,(char*)pgm_read_word(&(string_table[9]))) ; else
     if (mode == 3) strcpy_P(lcd_mess,(char*)pgm_read_word(&(string_table[24]))) ;    
- max_counter=pgm_read_word(max_counters+mode)  ;
+ max_counter=pgm_read_dword(max_counters+mode)  ;
  send_mess_20char(2) ;  
 }
 
@@ -720,7 +735,6 @@ void open_new_file() // 23-may-2014
  int min_offset ;
 
  if (myFile) return ; // a log file is already open
- 
 
  if (sd_detect()) {
   strcpy_P(lcd_mess,(char*)pgm_read_word(&(string_table[3]))) ; // no SD card detected
@@ -766,10 +780,11 @@ void open_new_file() // 23-may-2014
 Stop the logging on the SD-card               *
 **********************************************/
 
-void stop_sd_card_logging() // 04-apr-2014
+void stop_sd_card_logging() // 30-jan-2017
 
 {
  mark_end() ;
+ // delay(200) ;
  myFile.close() ;
  strcpy_P(lcd_mess,(char*)pgm_read_word(&(string_table[11]))) ;  // end of card logging
  get_act_date_time() ;
@@ -820,12 +835,18 @@ void give_pulse() // 07-mar-2014
 The main Arduino loop() *
 ************************/
 
-void loop () { // 14-mar-2014
+void loop () { // 30-jan-2017
     
+ display_mode() ;
+ 
  if (try_to_open_file) open_new_file() ;
  
  if (myFile) { // we have a file open for logging the data
   do { // wait till the max. measurement time is reached or we want to stop the logging
+   // Serial.print("counter - max_counter : ") ;
+   // Serial.print(counter) ;
+   // Serial.print(" ") ;
+   // Serial.println(max_counter) ;
    get_show_date_time_values() ;
    my_delay(550) ;
    if (try_to_stop_logging) stop_sd_card_logging() ;
@@ -839,5 +860,5 @@ void loop () { // 14-mar-2014
   if (Serial.available() > 0) add_char() ;
   my_delay(10) ;
  }
- display_mode() ;
+ // display_mode() ;
 }
