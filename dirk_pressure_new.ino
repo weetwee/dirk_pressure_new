@@ -1,6 +1,6 @@
 /*
 it uses an Arduino UNO + a shield with RTC & SD-card (from : www.kibuck.com)
-use & compile with : Arduino 1.5.5 (on my MacBook)
+use & compile with : Arduino 1.5.5 (on my MacBook) , or Arduino 1.0.6 on my MacBook Pro
 Date and time functions using a DS1307 RTC connected via I2C (use Wire lib)
 Rev. 02-mar-2014 : we started with the RTC chip (a DS1307)
 Rev. 03-mar-2014 : now with the LCD (I2C) display & Arduino 1.0.1
@@ -83,7 +83,8 @@ Rev. 16-jan-2017 : now we start in mode : 3 with the logging activated (if we ha
 Rev. 23-jan-2017 : counter & max_counter is now : unsigned long , max_counters[] is now : prog_uint32_t
                    changed : mark_begin()
 Rev. 30-jan-2017 : now max_counter is correct for mode 3 , solved the bug of the rubbish characters
-                   at the end of a log. file (should use strcpy_P instead of strcpy)
+                   at the end of a log. file (because you should use strcpy_P(....)  instead of strcpy(...) )
+Rev. 31-jan-2017 : try to give the file the correct date & time for the file browser (but does it work ?)
 */
 
 #include <Wire.h>
@@ -101,7 +102,7 @@ Rev. 30-jan-2017 : now max_counter is correct for mode 3 , solved the bug of the
 // we put all the fixed text string in FLASH memory instead of in dynamic SRAM
 
 prog_char title_string[] PROGMEM = "Pressure - Logging" ;
-prog_char rev1_string[] PROGMEM = "Rev. 30-jan-2017" ;
+prog_char rev1_string[] PROGMEM = "Rev. 31-jan-2017" ;
 prog_char email_string[] PROGMEM = "email : w2@skynet.be" ;
 prog_char no_sd_card[] PROGMEM = "No SD-Card inserted" ;
 prog_char wr_protected[] PROGMEM = "SD : Write protected" ;
@@ -117,7 +118,7 @@ prog_char start_time[] PROGMEM = "#Start time/date : ";
 prog_char stop_time[] PROGMEM = "#Stop time/date : ";
 prog_char rec_str[] PROGMEM = "Received : " ;
 prog_char file_str[] PROGMEM = "File : " ;
-prog_char period_str[] PROGMEM = " - Period : " ;
+prog_char period_str[] PROGMEM = "#Sampling rate : " ;
 prog_char sec_str[] PROGMEM = " sec." ;
 prog_char firmware_str[] PROGMEM = "#Firmware : " ;
 prog_char date_time_adj[] PROGMEM = "Date/Time adjusted" ;
@@ -205,8 +206,6 @@ volatile float value ; // the value we measured
 byte log_data ;
 byte stop_mode ; // default is 1 , automatic stop
 
-// byte test_b ;
-
 /************************************************
 Convert the string lcd_mess to exactly 20 char. *
 to avoid flickering on the LCD                  *
@@ -257,7 +256,7 @@ Mark the START of the logging      *
 mode + date/time info              *
 ***********************************/
 
-void mark_begin() // 23-jan-2017
+void mark_begin() // 31-jan-2017
 
 {
  float period ;
@@ -271,17 +270,20 @@ void mark_begin() // 23-jan-2017
    if (mode == 1) strcpy_P(lcd_mess,(char*)pgm_read_word(&(string_table[8]))) ; else // mode 1
     if (mode == 2) strcpy_P(lcd_mess,(char*)pgm_read_word(&(string_table[9]))) ; else // mode 2
      if (mode == 3) strcpy_P(lcd_mess,(char*)pgm_read_word(&(string_table[24]))) ; // mode 3
-  myFile.print(lcd_mess) ;
+  myFile.println(lcd_mess) ;
   period=(float)pgm_read_dword(mode_interrupt_times+mode)/1000000.0 ;
-  Serial.print("Period : ") ;
-  Serial.print(period) ;
-  Serial.println(" sec.") ;
-  strcpy_P(lcd_mess,(char*)pgm_read_word(&(string_table[17]))) ; // Period
+  // Serial.print("Period : ") ;
+  // Serial.print(period) ;
+  // Serial.println(" sec.") ;
+  strcpy_P(lcd_mess,(char*)pgm_read_word(&(string_table[17]))) ; // sampling rate
   myFile.print(lcd_mess) ;
+  Serial.print(lcd_mess) ;
   dtostrf(period,3,1,lcd_mess) ;
   myFile.print(lcd_mess) ;
+  Serial.print(lcd_mess) ;
   strcpy_P(lcd_mess,(char*)pgm_read_word(&(string_table[18]))) ; // sec.
   myFile.println(lcd_mess) ;
+  Serial.println(lcd_mess) ;
   strcpy_P(lcd_mess,(char*)pgm_read_word(&(string_table[19]))) ; // #Firmware
   myFile.print(lcd_mess) ;
   strcpy_P(lcd_mess,(char*)pgm_read_word(&(string_table[1]))) ; // Firmware rev.
@@ -436,7 +438,7 @@ void sd_init() // 11-mar-2014
 The Arduino setup() function             *
 *****************************************/
 
-void setup () { // 30-jan-2017
+void setup () { // 31-jan-2017
   
  Serial.begin(9600);
  Wire.begin();
@@ -484,7 +486,7 @@ void setup () { // 30-jan-2017
  counter=0 ;
  counter1=0 ;
  mode=3 ; // we always start in Mode 0 , now we start in mode 3
- // max_counter=pgm_read_dword(max_counters+mode)  ;
+
  try_to_open_file=1 ; // was 0
  try_to_stop_logging=0 ;
  stop_mode=1 ; // default is automatic stop
@@ -627,10 +629,9 @@ Start the file logging when it is not yet running   *
 or stop it when it is already running               *
 ****************************************************/
 
-void start_logging() // 23-may-2014
+void start_logging() // 31-jan-2017
 
 {
- // test_b++ ; // only for test purposes
  noInterrupts() ;
  
  // wait for the end of the debounce time
@@ -640,7 +641,10 @@ void start_logging() // 23-may-2014
  if (myFile) {
   try_to_stop_logging=1 ; // a log file is already open
   stop_mode=0 ; // manual stop is activated
- } else try_to_open_file=1 ; // try to open a log file
+ } else {
+    try_to_open_file=1 ; // try to open a log file
+    stop_mode=1 ;
+ }
  interrupts() ; 
 }
 
@@ -728,7 +732,7 @@ as of 23-may-2014 the filename is now : *
 MMDDHHMM instead of DDMMHHMM            *
 ****************************************/
 
-void open_new_file() // 23-may-2014
+void open_new_file() // 31-jan-2017
 
 {
  char file_name[16] ; // min. is 8 + 3 + 2
@@ -750,6 +754,8 @@ void open_new_file() // 23-may-2014
   
  // if the log file already exists then we add an extra minute
 
+ now=rtc.now() ;
+ SdFile::dateTimeCallback(dateTime) ; // so that the file has the correct date/time in the file browser
  min_offset=0 ;
  do {
   now=rtc.now() ;
@@ -780,11 +786,10 @@ void open_new_file() // 23-may-2014
 Stop the logging on the SD-card               *
 **********************************************/
 
-void stop_sd_card_logging() // 30-jan-2017
+void stop_sd_card_logging() // 31-jan-2017
 
 {
  mark_end() ;
- // delay(200) ;
  myFile.close() ;
  strcpy_P(lcd_mess,(char*)pgm_read_word(&(string_table[11]))) ;  // end of card logging
  get_act_date_time() ;
@@ -831,11 +836,28 @@ void give_pulse() // 07-mar-2014
  digitalWrite(PULSE,LOW) ;
 }
 
+// Just like the above posts
+// after your rtc is set up and working you code just needs:
+
+void dateTime(uint16_t* date, uint16_t* time) { // 31-jan-2017 , does it work ?
+
+ // now = rtc.now();
+
+ // noInterrupts() ;
+
+ // return date using FAT_DATE macro to format fields
+ *date = FAT_DATE(now.year(), now.month(), now.day());
+
+  // return time using FAT_TIME macro to format fields
+ *time = FAT_TIME(now.hour(), now.minute(), now.second());
+ // interrupts() ;
+}
+
 /************************
 The main Arduino loop() *
 ************************/
 
-void loop () { // 30-jan-2017
+void loop () { // 31-jan-2017
     
  display_mode() ;
  
@@ -843,10 +865,6 @@ void loop () { // 30-jan-2017
  
  if (myFile) { // we have a file open for logging the data
   do { // wait till the max. measurement time is reached or we want to stop the logging
-   // Serial.print("counter - max_counter : ") ;
-   // Serial.print(counter) ;
-   // Serial.print(" ") ;
-   // Serial.println(max_counter) ;
    get_show_date_time_values() ;
    my_delay(550) ;
    if (try_to_stop_logging) stop_sd_card_logging() ;
@@ -860,5 +878,4 @@ void loop () { // 30-jan-2017
   if (Serial.available() > 0) add_char() ;
   my_delay(10) ;
  }
- // display_mode() ;
 }
