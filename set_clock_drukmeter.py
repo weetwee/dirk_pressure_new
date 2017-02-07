@@ -4,12 +4,17 @@ import serial
 import time
 import os
 import sys
+import platform
 
 print "Python version : " + sys.version + "\n"
 
-print "set_clock_drukmeter - Rev. 31-jan-2017" + "\n"
+print "set_clock_drukmeter - Rev. 07-feb-2017" + "\n"
+print "platform : " + platform.system()
 
-ser_port="COM9"
+if platform.system() == "Windows" :
+ ser_port="COM9"
+elif platform.system() == "Darwin" :
+ ser_port="/dev/tty.usbmodem1411"
 
 if len(sys.argv) == 2 :
  ser_port=sys.argv[1]
