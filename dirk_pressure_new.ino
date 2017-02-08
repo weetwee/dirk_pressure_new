@@ -85,6 +85,7 @@ Rev. 23-jan-2017 : counter & max_counter is now : unsigned long , max_counters[]
 Rev. 30-jan-2017 : now max_counter is correct for mode 3 , solved the bug of the rubbish characters
                    at the end of a log. file (because you should use strcpy_P(....)  instead of strcpy(...) )
 Rev. 31-jan-2017 : try to give the file the correct date & time for the file browser (but does it work ?)
+Rev. 08-feb-2017 : created an entry on www.github.com
 */
 
 #include <Wire.h>
